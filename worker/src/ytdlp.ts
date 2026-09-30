@@ -15,7 +15,17 @@ async function getCookiesFile(): Promise<string | null> {
   return cookiesFile;
 }
 
-async function baseArgs(): Promise<string[]> {
+/** True when this URL's host should be fetched through the configured proxy. */
+export function shouldProxy(url: string, proxy = config.proxy, domains = config.proxyDomains): boolean {
+  if (!proxy) return false;
+  if (domains.includes('*')) return true;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return domains.some((d) => host === d || host.endsWith('.' + d));
+  } catch { return false; }
+}
+
+async function baseArgs(url: string): Promise<string[]> {
   const a = [
     '--no-playlist', '--no-warnings', '--ignore-config',
     '--js-runtimes', 'node',                 // YouTube needs an external JS runtime (EJS challenge solver)
@@ -24,7 +34,7 @@ async function baseArgs(): Promise<string[]> {
     '--max-filesize', `${config.maxDownloadMb}M`,
     '--restrict-filenames',
   ];
-  if (config.proxy) a.push('--proxy', config.proxy);
+  if (shouldProxy(url)) a.push('--proxy', config.proxy);
   const c = await getCookiesFile();
   if (c) a.push('--cookies', c);
   return a;
@@ -48,7 +58,11 @@ function run(args: string[], onLine?: (line: string) => void): Promise<string> {
     });
     p.stderr.on('data', (d) => (err = (err + d).slice(-10000)));
     p.on('error', (e) => reject(new Error(`Failed to start yt-dlp: ${e.message}`)));
-    p.on('close', (code) => (code === 0 ? resolve(out) : reject(classifyYtdlpError(err || out))));
+    p.on('close', (code) => {
+      if (code === 0) return resolve(out);
+      console.error(`[yt-dlp] exit ${code}: ${(err || out).trim().split('\n').slice(-6).join(' | ').slice(0, 900)}`);
+      reject(classifyYtdlpError(err || out));
+    });
   });
 }
 
@@ -61,7 +75,7 @@ export interface RemoteMeta {
 }
 
 export async function probeUrl(url: string): Promise<RemoteMeta> {
-  const out = await run([...(await baseArgs()), '-J', '--skip-download', url]);
+  const out = await run([...(await baseArgs(url)), '-J', '--skip-download', url]);
   const j = JSON.parse(out);
   const info = j.entries?.[0] ?? j;
   if (info.is_live || info.live_status === 'is_live' || info.live_status === 'is_upcoming')
@@ -82,7 +96,7 @@ export async function downloadMedia(
   opts: { kind: 'video' | 'audio'; audioFormat?: 'mp3' | 'raw'; quality?: number },
   onProgress: (pct: number) => void,
 ): Promise<string> {
-  const args = [...(await baseArgs()), '--newline', '--progress-template', 'download:PROGRESS %(progress._percent_str)s', '-o', path.join(dir, 'src.%(ext)s')];
+  const args = [...(await baseArgs(url)), '--newline', '--progress-template', 'download:PROGRESS %(progress._percent_str)s', '-o', path.join(dir, 'src.%(ext)s')];
   if (opts.kind === 'video') {
     const q = opts.quality ?? 1080;
     args.push('-f', 'bv*+ba/b', '-S', `res:${q},vcodec:h264,acodec:m4a`, '--merge-output-format', 'mp4');

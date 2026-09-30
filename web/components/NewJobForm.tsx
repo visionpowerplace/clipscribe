@@ -5,7 +5,7 @@ import { LANGUAGES } from '@/lib/languages';
 import { createClient } from '@/lib/supabase/client';
 import Icon from '@/components/Icons';
 
-const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 50);
+const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 50); // set NEXT_PUBLIC_MAX_UPLOAD_MB=1024 when using R2
 
 export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean }) {
   const router = useRouter();
@@ -49,8 +49,19 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
         const s = await fetch('/api/uploads/sign', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filename: file!.name, size: file!.size }) });
         const sj = await s.json();
         if (!s.ok) throw new Error(sj.error ?? 'Upload failed.');
-        const { error: upErr } = await createClient().storage.from('uploads').uploadToSignedUrl(sj.path, sj.token, file!, { contentType: file!.type || 'application/octet-stream' });
-        if (upErr) throw new Error('Upload failed: ' + upErr.message);
+        if (sj.provider === 'r2') {
+          await new Promise<void>((resolve, reject) => {
+            const x = new XMLHttpRequest();
+            x.open('PUT', sj.url);
+            x.upload.onprogress = (ev) => { if (ev.lengthComputable) setPhase(`Uploading… ${Math.round((ev.loaded / ev.total) * 100)}%`); };
+            x.onload = () => (x.status >= 200 && x.status < 300 ? resolve() : reject(new Error(`Upload failed (${x.status}).`)));
+            x.onerror = () => reject(new Error('Upload failed: network error. If this keeps happening the storage CORS setting may be missing.'));
+            x.send(file!);
+          });
+        } else {
+          const { error: upErr } = await createClient().storage.from('uploads').uploadToSignedUrl(sj.path, sj.token, file!, { contentType: file!.type || 'application/octet-stream' });
+          if (upErr) throw new Error('Upload failed: ' + upErr.message);
+        }
         body = { ...body, sourceType: 'upload', uploadPath: sj.path, filename: file!.name };
       }
       setPhase('Starting…');

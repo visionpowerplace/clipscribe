@@ -52,6 +52,7 @@ let addon = true;
 };
 (sb as any).rpc = async (fn: string, args: any) => { calls.push([fn, args]); return { data: true, error: null }; };
 (sb as any).storage = { from: (bucket: string) => ({
+  createSignedUrl: async () => ({ data: { signedUrl: 'http://127.0.0.1:8766/clip.mp4' }, error: null }),
   upload: async (p: string) => { uploaded.push(`${bucket}/${p}`); return { error: null }; },
   remove: async () => ({ error: null }),
 }) };
@@ -105,4 +106,12 @@ await processJob({ ...job, id: 'job-4', want_download: false, target_languages: 
 assert.equal(db.jobs[3].status, 'completed', db.jobs[3].error);
 assert.equal(db.jobs[3].media_path ?? null, null);
 console.log('ADD-ON GATE PASSED');
+// upload flow: storage object -> local file -> transcription (regression: audioSource used to stay null for uploads)
+db.jobs.push({ id: 'job-5' });
+db.transcripts.length = 0;
+await processJob({ ...job, id: 'job-5', source_type: 'upload', source_url: null, upload_path: 'user-1/x.mp4', original_filename: 'my video.mp4', want_download: false, target_languages: [] });
+assert.equal(db.jobs[4].status, 'completed', db.jobs[4].error);
+assert.equal(db.transcripts.length, 1);
+assert.equal(db.jobs[4].duration_seconds, 95);
+console.log('UPLOAD FLOW PASSED');
 web.kill(); oa.close();

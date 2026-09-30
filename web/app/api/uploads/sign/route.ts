@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { presignPut, r2Enabled } from '@/lib/r2';
 import { adminClient } from '@/lib/supabase/admin';
 
 const ALLOWED = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'flac', 'wma', 'mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v', '3gp', 'mpeg', 'mpg']);
 // Supabase's free plan caps every object at 50 MB. Raise MAX_UPLOAD_MB (and Supabase's global storage limit) on a paid plan.
-const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 50);
+const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || (process.env.R2_BUCKET ? 1024 : 50));
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 export async function POST(req: Request) {
@@ -17,7 +18,15 @@ export async function POST(req: Request) {
   if (typeof size === 'number' && size > MAX_BYTES) return NextResponse.json({ error: `This file is larger than the ${MAX_MB} MB upload limit. Paste a link instead, or trim/compress the file (an audio-only export is much smaller).` }, { status: 400 });
 
   const path = `${user!.id}/${randomUUID()}.${ext}`;
+  if (r2Enabled()) {
+    try {
+      const url = await presignPut('uploads', path);
+      return NextResponse.json({ provider: 'r2', path, url });
+    } catch {
+      return NextResponse.json({ error: 'Could not start the upload. Please try again.' }, { status: 500 });
+    }
+  }
   const { data, error } = await adminClient().storage.from('uploads').createSignedUploadUrl(path);
   if (error || !data) return NextResponse.json({ error: 'Could not start the upload. Please try again.' }, { status: 500 });
-  return NextResponse.json({ path: data.path, token: data.token });
+  return NextResponse.json({ provider: 'supabase', path: data.path, token: data.token });
 }

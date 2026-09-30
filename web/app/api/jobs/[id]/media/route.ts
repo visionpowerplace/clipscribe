@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { presignGet, r2Enabled } from '@/lib/r2';
 import { adminClient } from '@/lib/supabase/admin';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,6 +12,10 @@ export async function GET(_req: Request, { params }: Ctx) {
   if (res) return res;
   const { data: job } = await supabase.from('jobs').select('media_path,media_filename,status').eq('id', id).maybeSingle();
   if (!job?.media_path) return NextResponse.json({ error: 'File not available (it may have expired).' }, { status: 404 });
+  if (r2Enabled()) {
+    try { return NextResponse.redirect(await presignGet('outputs', job.media_path, job.media_filename ?? undefined)); }
+    catch { return NextResponse.json({ error: 'Could not create download link.' }, { status: 500 }); }
+  }
   const { data, error } = await adminClient().storage.from('outputs').createSignedUrl(job.media_path, 300, { download: job.media_filename ?? true });
   if (error || !data) return NextResponse.json({ error: 'Could not create download link.' }, { status: 500 });
   return NextResponse.redirect(data.signedUrl);

@@ -28,7 +28,7 @@ export default function Home() {
         <h1>Turn any video or audio into<br /><span className="grad-text">accurate text, in any language.</span></h1>
         <p className="lead">Paste a link or upload a file. Get a timestamped transcript, SRT/VTT subtitles, translations in 40 languages and an AI summary, in minutes.</p>
         <div className="cta">
-          <Link href="/login" className="btn primary lg">Start free: 10 minutes on us <Icon name="arrow" size={18} /></Link>
+          <Link href="/login?mode=signup" className="btn primary lg">Start free: 10 minutes on us <Icon name="arrow" size={18} /></Link>
           <Link href="/pricing" className="btn lg">See pricing</Link>
         </div>
         <div className="card glow mock">
@@ -85,7 +85,7 @@ export default function Home() {
       </section>
 
       <section className="wrap" style={{ paddingTop: 10 }}>
-        <div className="cta-band"><h2>Try {name} free</h2><p className="muted">No credit card required. 10 free minutes on signup.</p><Link href="/login" className="btn primary lg">Create your account</Link></div>
+        <div className="cta-band"><h2>Try {name} free</h2><p className="muted">No credit card required. 10 free minutes on signup.</p><Link href="/login?mode=signup" className="btn primary lg">Create your account</Link></div>
       </section>
     </>
   );

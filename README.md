@@ -57,3 +57,11 @@ Uppy/TUS uploads with progress bar · API keys + public API · team seats · spe
 * **Worker**: Render free Docker web service (`worker/Dockerfile`, context `./worker`). It sleeps after 15 idle minutes; the web app pings `WORKER_URL/wake` when a job is created and the worker self-pings while busy. Set `WORKER_SECRET` to the same value on both sides.
 * **AI**: Groq free tier via the OpenAI-compatible API: `TRANSCRIBE_BASE_URL=https://api.groq.com/openai/v1`, `TRANSCRIBE_MODEL=whisper-large-v3-turbo`, `TRANSLATE_MODEL=llama-3.3-70b-versatile` (also used for summaries), `TRANSCRIBE_API_KEY=<groq key>`. Groq's free tier limits uploads to 25 MB per request; the worker already splits audio into small chunks.
 * YouTube blocks most datacenter IPs, so downloads from it may fail on free hosts. Vimeo, direct links and uploads are the reliable test cases.
+
+## Cloudflare R2 storage (free tier) and large uploads
+Supabase's free plan caps every stored object at 50 MB. Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` on **both** the web app and the worker (plus `NEXT_PUBLIC_MAX_UPLOAD_MB=1024` on the web app) and uploads go browser -> R2 via presigned URLs, downloaded media is stored in R2 too, and the 50 MB cap disappears. The bucket needs this CORS rule (R2 dashboard > bucket > Settings > CORS policy):
+`[{"AllowedOrigins":["https://YOUR-SITE"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]`
+Objects are namespaced `uploads/...` and `outputs/...`; the worker's retention cleanup deletes old ones. Without the R2 variables everything falls back to Supabase Storage.
+
+## YouTube from cloud servers
+YouTube blocks most datacenter IPs ("Sign in to confirm you're not a bot"). Reliable options: (1) a residential proxy: set `YTDLP_PROXY` on the worker; by default only YouTube hosts use it (`YTDLP_PROXY_DOMAINS`), and audio-only transcription downloads are small (roughly 60 MB per hour of video); (2) run the worker on a home computer (residential IP); (3) cookies from a dedicated YouTube account in `YTDLP_COOKIES_B64` (may violate YouTube's terms and can get the account flagged).

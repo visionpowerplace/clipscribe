@@ -17,7 +17,7 @@ export default function Privacy() {
       <h2>How we use it</h2>
       <p>To provide the Service, prevent abuse, process payments and support you. We do not sell your data and do not use your content to train AI models.</p>
       <h2>Service providers</h2>
-      <p>{name} uses Supabase (database, authentication, storage), OpenAI (speech-to-text and translation processing), Stripe (payments), Vercel and Railway (hosting). Your audio and text are sent to these providers only as needed to perform the Service.</p>
+      <p>{name} uses Supabase (database, authentication), Cloudflare R2 or Supabase Storage (file storage), OpenAI (speech-to-text and translation processing), Stripe (payments), Vercel and Railway (hosting). Your audio and text are sent to these providers only as needed to perform the Service.</p>
       <h2>Retention and deletion</h2>
       <p>Uploaded files are deleted after processing; downloaded media after 7 days. Transcripts stay until you delete the job. You can delete any job in the app, or email [SUPPORT EMAIL] to delete your account and data.</p>
       <h2>Your rights</h2>

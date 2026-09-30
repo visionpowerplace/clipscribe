@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 export default function LoginForm() {
   const params = useSearchParams();
   const next = params.get('next') ?? '/dashboard';
-  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
+  const [mode, setMode] = useState<'signin' | 'signup'>(params.get('mode') === 'signin' ? 'signin' : 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,6 +46,10 @@ export default function LoginForm() {
 
   return (
     <form className="card stack" onSubmit={submit}>
+      <div className="tabs" role="tablist" style={{ width: '100%' }}>
+        <button type="button" style={{ flex: 1 }} className={mode === 'signup' ? 'on' : ''} onClick={() => { setMode('signup'); setMsg(null); }}>Sign up</button>
+        <button type="button" style={{ flex: 1 }} className={mode === 'signin' ? 'on' : ''} onClick={() => { setMode('signin'); setMsg(null); }}>Log in</button>
+      </div>
       <div>
         <h2>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h2>
         <p className="muted" style={{ margin: 0 }}>{mode === 'signup' ? 'You get 10 free minutes. No card needed.' : 'Sign in to continue.'}</p>

@@ -15,7 +15,11 @@ export function classifyYtdlpError(stderr: string): UserError {
     );
   if (s.includes('private video') || s.includes('this video is private'))
     return new UserError('This video is private, so it cannot be accessed.', 'private');
-  if (s.includes('login required') || s.includes('log in') || s.includes('sign in') || s.includes('cookies'))
+  if (s.includes('password'))
+    return new UserError('This video is password-protected, so it cannot be accessed automatically. Upload the file instead.', 'password');
+  if (s.includes('http error 403') || s.includes('forbidden'))
+    return new UserError('The video site refused the request from our server (common for cloud servers). Try again later or upload the file instead.', 'platform_blocked');
+  if (s.includes('login required') || s.includes('log in') || s.includes('sign in') || s.includes('authentication required') || s.includes('requires authentication'))
     return new UserError(
       'This video requires a login to view (common on Instagram/Facebook private or restricted posts). Upload the file instead.',
       'login_required',

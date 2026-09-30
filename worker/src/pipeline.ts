@@ -85,6 +85,7 @@ export async function processJob(job: Job): Promise<void> {
     } else {
       localSource = path.join(tmp, 'upload' + path.extname(job.original_filename ?? '.bin'));
       await downloadObject('uploads', job.upload_path!, localSource);
+      audioSource = localSource; // audioSource was initialised before localSource existed: set it now
       const info = await probeMedia(localSource);
       if (!info.hasAudio) throw new UserError('This file has no audio track to transcribe.', 'no_audio');
       duration = info.duration;

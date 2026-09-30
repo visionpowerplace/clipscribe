@@ -28,7 +28,10 @@ export default async function Header() {
               <form action="/auth/signout" method="post"><button className="btn sm" type="submit">Sign out</button></form>
             </>
           ) : (
-            <Link href="/login" className="btn sm primary">Sign in</Link>
+            <>
+              <Link href="/login?mode=signin" className="btn">Log in</Link>
+              <Link href="/login?mode=signup" className="btn primary">Sign up free</Link>
+            </>
           )}
         </nav>
       </div>

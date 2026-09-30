@@ -10,14 +10,19 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx test/run.ts"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1143.0",
+    "@aws-sdk/lib-storage": "^3.1143.0",
     "@supabase/supabase-js": "^2.45.0",
     "openai": "^5.0.0",
     "tus-js-client": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "s3rver": "^3.7.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

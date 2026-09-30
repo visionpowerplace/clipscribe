@@ -68,3 +68,16 @@ console.log('ALL WORKER TESTS PASSED');
   assert.ok(ch[0].startsWith('[0] ') && ch.join('').split('\n').filter(Boolean).length === 400);
   console.log('SUMMARY CHUNKING PASSED');
 }
+
+// proxy routing: only YouTube by default
+{
+  const { shouldProxy } = await import('../src/ytdlp.js');
+  const P = 'http://u:p@proxy:1', D = ['youtube.com', 'youtu.be'];
+  assert.equal(shouldProxy('https://www.youtube.com/watch?v=1', P, D), true);
+  assert.equal(shouldProxy('https://youtu.be/abc', P, D), true);
+  assert.equal(shouldProxy('https://vimeo.com/123', P, D), false);
+  assert.equal(shouldProxy('https://notyoutube.com/x', P, D), false);
+  assert.equal(shouldProxy('https://vimeo.com/123', P, ['*']), true);
+  assert.equal(shouldProxy('https://youtu.be/abc', '', D), false);
+  console.log('PROXY ROUTING PASSED');
+}

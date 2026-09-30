@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { r2Enabled, r2Remove } from '@/lib/r2';
 import { adminClient } from '@/lib/supabase/admin';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -24,8 +25,13 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!job || job.user_id !== user!.id) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (job.status === 'processing') return NextResponse.json({ error: 'This job is still running.' }, { status: 409 });
   const admin = adminClient();
-  if (job.media_path) await admin.storage.from('outputs').remove([job.media_path]);
-  if (job.upload_path) await admin.storage.from('uploads').remove([job.upload_path]);
+  if (r2Enabled()) {
+    if (job.media_path) await r2Remove('outputs', [job.media_path]).catch(() => {});
+    if (job.upload_path) await r2Remove('uploads', [job.upload_path]).catch(() => {});
+  } else {
+    if (job.media_path) await admin.storage.from('outputs').remove([job.media_path]);
+    if (job.upload_path) await admin.storage.from('uploads').remove([job.upload_path]);
+  }
   await admin.from('jobs').delete().eq('id', id).eq('user_id', user!.id);
   return NextResponse.json({ ok: true });
 }
