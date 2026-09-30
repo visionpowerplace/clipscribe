@@ -13,6 +13,10 @@ export async function downloadObject(bucket: string, objectPath: string, dest: s
   const res = await fetch(data.signedUrl);
   if (!res.ok || !res.body) throw new Error(`Storage download failed: ${res.status}`);
   await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(dest));
+  const expected = Number(res.headers.get('content-length') ?? 0);
+  const got = (await stat(dest)).size;
+  console.log(`[storage] downloaded ${bucket}/${objectPath}: ${got} bytes (expected ${expected || 'unknown'})`);
+  if (expected && got !== expected) throw new Error(`Storage download incomplete: ${got}/${expected} bytes`);
 }
 
 const SMALL_LIMIT = 40 * 1024 * 1024;

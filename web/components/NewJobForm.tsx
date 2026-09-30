@@ -3,6 +3,9 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LANGUAGES } from '@/lib/languages';
 import { createClient } from '@/lib/supabase/client';
+import Icon from '@/components/Icons';
+
+const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 50);
 
 export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean }) {
   const router = useRouter();
@@ -30,6 +33,7 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
     setError('');
     if (tab === 'url' && !url.trim()) return setError('Paste a link first.');
     if (tab === 'upload' && !file) return setError('Choose a file first.');
+    if (tab === 'upload' && file && file.size > MAX_MB * 1048576) return setError(`This file is ${(file.size / 1048576).toFixed(0)} MB, over the ${MAX_MB} MB upload limit. Paste a link instead, or export a smaller or audio-only version and upload that.`);
     if (!wantTranscript && !(wantDownload && tab === 'url')) return setError('Choose at least one thing to do.');
     if (!rights) return setError('Please confirm you have the right to process this content.');
     setBusy(true);
@@ -62,11 +66,35 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
     }
   }
 
+  const [op, setOp] = useState<'link' | 'upload' | 'audio' | 'download'>('link');
+  function pick(o: 'link' | 'upload' | 'audio' | 'download') {
+    setOp(o);
+    if (o === 'upload') setTab('upload'); else setTab('url');
+    if (o === 'download') { if (hasAddon) { setWantDownload(true); } } else setWantDownload(false);
+    setError('');
+  }
+  const OPS = [
+    { k: 'link' as const, icon: 'video', cls: '', t: 'Transcribe a video link', d: 'YouTube, Vimeo, Instagram, TikTok, Facebook and more.', go: 'Paste link' },
+    { k: 'upload' as const, icon: 'upload', cls: 'cyan', t: 'Upload a video or audio file', d: `MP4, MOV, MKV, WebM, MP3, WAV, M4A. Up to ${MAX_MB} MB.`, go: 'Choose file' },
+    { k: 'audio' as const, icon: 'mic', cls: 'green', t: 'Transcribe audio / podcast', d: 'Podcast episodes, SoundCloud and direct audio links.', go: 'Paste audio link' },
+    { k: 'download' as const, icon: 'download', cls: 'pink', t: 'Download media', d: hasAddon ? 'Save the video or MP3 from a supported link you have rights to.' : 'Add-on required. Save video or MP3 from supported links.', go: hasAddon ? 'Open downloader' : 'Unlock add-on' },
+  ];
+
   return (
-    <form className="card stack" onSubmit={submit}>
+    <div className="stack">
+      <div className="section-title"><span className="ico" style={{ margin: 0, width: 36, height: 36, borderRadius: 11 }}><Icon name="sparkle" size={18} /></span><h2>Choose an operation</h2></div>
+      <div className="ops">
+        {OPS.map((o) => (
+          <button type="button" key={o.k} className={`op ${op === o.k ? 'on' : ''}`} onClick={() => (o.k === 'download' && !hasAddon ? (window.location.href = '/pricing#addon') : pick(o.k))}>
+            <div className={`ico ${o.cls}`}><Icon name={o.icon} /></div>
+            <h3>{o.t}</h3><p>{o.d}</p><span className="go">{o.go} <Icon name="arrow" size={16} /></span>
+          </button>
+        ))}
+      </div>
+    <form className="card glow stack" onSubmit={submit} style={{ marginTop: 6 }}>
       <div className="tabs" role="tablist">
-        <button type="button" className={tab === 'url' ? 'on' : ''} onClick={() => setTab('url')}>Paste a link</button>
-        <button type="button" className={tab === 'upload' ? 'on' : ''} onClick={() => setTab('upload')}>Upload a file</button>
+        <button type="button" className={tab === 'url' ? 'on' : ''} onClick={() => { setTab('url'); if (op === 'upload') setOp('link'); }}>Paste a link</button>
+        <button type="button" className={tab === 'upload' ? 'on' : ''} onClick={() => { setTab('upload'); setOp('upload'); }}>Upload a file</button>
       </div>
 
       {tab === 'url' ? (
@@ -83,7 +111,7 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
           onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
         >
           <input ref={fileRef} type="file" hidden accept="audio/*,video/*,.mkv,.m4a,.opus,.flac" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          {file ? <strong>{file.name} <span className="muted">({(file.size / 1048576).toFixed(1)} MB)</span></strong> : <span className="muted">Drop an audio or video file here, or click to browse (up to 2 GB)</span>}
+          {file ? <strong>{file.name} <span className="muted">({(file.size / 1048576).toFixed(1)} MB)</span></strong> : <span className="muted">Drop an audio or video file here, or click to browse (up to {MAX_MB} MB)</span>}
         </div>
       )}
 
@@ -140,5 +168,6 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
         <button className="btn primary" disabled={busy}>{busy ? phase || 'Working…' : 'Start'}</button>
       </div>
     </form>
+    </div>
   );
 }

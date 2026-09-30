@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Icon from '@/components/Icons';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function Header() {
@@ -17,13 +18,13 @@ export default async function Header() {
   return (
     <header className="site">
       <div className="wrap">
-        <Link href="/" className="brand">{name}</Link>
+        <Link href="/" className="brand"><span className="logo"><Icon name="wave" size={20} /></span>{name}</Link>
         <nav>
-          <Link href="/pricing" className="hide-sm">Pricing</Link>
+          <Link href="/pricing" className="nav hide-sm">Pricing</Link>
           {signedIn ? (
             <>
-              <Link href="/dashboard">Dashboard</Link>
-              {minutes !== null && <span className="pill" title="Minutes remaining">{minutes} min</span>}
+              <Link href="/dashboard" className="nav">Dashboard</Link>
+              {minutes !== null && <Link href="/pricing" className="pill mins" title="Minutes remaining">{minutes} min left</Link>}
               <form action="/auth/signout" method="post"><button className="btn sm" type="submit">Sign out</button></form>
             </>
           ) : (

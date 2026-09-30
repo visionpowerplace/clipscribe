@@ -27,7 +27,10 @@ export async function probeMedia(file: string): Promise<MediaInfo> {
   let out: string;
   try {
     ({ stdout: out } = await run('ffprobe', ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file]));
-  } catch {
+  } catch (e: any) {
+    let size = -1;
+    try { size = (await (await import('node:fs/promises')).stat(file)).size; } catch {}
+    console.error(`[probe] ffprobe failed for ${path.basename(file)} (${size} bytes): ${String(e?.message ?? e).slice(0, 500)}`);
     throw new UserError('This file is not a valid audio or video file, or it is corrupted.', 'bad_media');
   }
   const j = JSON.parse(out);
