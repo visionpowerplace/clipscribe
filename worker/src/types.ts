@@ -17,6 +17,9 @@ export interface Job {
   credits_charged: boolean;
   credit_cost: number | null;
   title: string | null;
+  summary?: Summary | null;
+  created_at?: string;
+  duration_seconds?: number | null;
 }
 
 export interface Segment {

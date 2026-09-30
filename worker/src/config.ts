@@ -40,8 +40,20 @@ export const config = {
   workerSecret: process.env.WORKER_SECRET || '',
   keepAliveUrl: process.env.KEEPALIVE_URL || process.env.RENDER_EXTERNAL_URL || '',
   concurrency: int('WORKER_CONCURRENCY', 2),
-  maxDurationSeconds: int('MAX_DURATION_SECONDS', 4 * 3600),
-  maxDownloadMb: int('MAX_DOWNLOAD_MB', 2000),
+  maxDurationSeconds: int('MAX_DURATION_SECONDS', 3 * 3600),            // longest media we will transcribe
+  maxVideoDownloadSeconds: int('MAX_VIDEO_DOWNLOAD_SECONDS', 3600),     // longest video (MP4) we will download
+  maxDownloadMb: int('MAX_DOWNLOAD_MB', 1000),
+  // Video fetched through the (per-GB) proxy is capped at this height; other sites are not affected.
+  proxiedMaxQuality: int('PROXIED_MAX_QUALITY', 720),
+  // 'manual' = use YouTube captions only when a human-made track exists (best quality);
+  // 'any' = also YouTube's auto-generated captions (fastest, but no punctuation/lower accuracy than Whisper); 'off' = never.
+  captionsMode: (process.env.CAPTIONS_MODE || 'manual') as 'manual' | 'any' | 'off',
+  // Job-finished email (Resend). Disabled unless RESEND_API_KEY and EMAIL_FROM are set.
+  resendKey: process.env.RESEND_API_KEY || '',
+  emailFrom: process.env.EMAIL_FROM || '',
+  appUrl: (process.env.APP_URL || '').replace(/\/$/, ''),
+  appName: process.env.APP_NAME || 'ClipScribe',
+  emailMinSeconds: int('EMAIL_MIN_SECONDS', 120),  // only email when the job took at least this long (people are watching short ones)
   retentionDays: int('RETENTION_DAYS', 7),
   proxy: process.env.YTDLP_PROXY || '',
   // Only these sites go through the proxy (residential proxies bill per GB, and only YouTube really needs one). Use '*' for all sites.

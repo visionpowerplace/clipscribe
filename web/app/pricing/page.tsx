@@ -41,7 +41,7 @@ export default function Pricing() {
       <div className="card row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="grow">
           <h3 style={{ marginBottom: 4 }}>{ADDON.name} <span className="price" style={{ fontSize: '1.3rem' }}>${ADDON.price}<small>/month</small></span></h3>
-          <p className="muted" style={{ margin: 0 }}>Save the video (MP4, up to 4K) or audio-only (MP3) from supported links, on top of any plan. Only for content you own or have permission to download. Downloads also use minutes (1 per 10 minutes of media).</p>
+          <p className="muted" style={{ margin: 0 }}>Save the video (MP4) or audio-only (MP3) from supported links, on top of any plan. Only for content you own or have permission to download. Downloads also use minutes (see below). Video downloads are limited to 60 minutes, and YouTube video is capped at 720p.</p>
         </div>
         <div style={{ minWidth: 200 }}><BuyButton kind="addon" itemKey={ADDON.key} label="Add downloads" /></div>
       </div>
@@ -52,7 +52,10 @@ export default function Pricing() {
           <li>Transcription: 1 minute per minute of audio/video (rounded up).</li>
           <li>Each translation language: +0.5 minute per minute of audio/video.</li>
           <li>AI summary (overview, key takeaways, chapters, quotes): +0.2 minute per minute of audio/video (minimum 1).</li>
-          <li>Downloading a video or audio file: 1 minute per 10 minutes of media (minimum 1).</li>
+          <li>Downloading audio (MP3): 1 minute per 10 minutes of media (minimum 1).</li>
+          <li>Downloading video (MP4), per minute of video: 0.4 minutes at 360–480p, 0.8 at 720p, 1.5 at 1080p, 3 at 1440p and above (minimum 1).</li>
+          <li>Maximum length: 3 hours per file or link for transcription.</li>
+          <li>Long jobs: we email you when they finish.</li>
           <li>If a job fails, the minutes are refunded automatically.</li>
         </ul>
       </div>

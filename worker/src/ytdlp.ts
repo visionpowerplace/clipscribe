@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { config } from './config.js';
 import { classifyYtdlpError, UserError } from './errors.js';
+import { CaptionPlan, CaptionTracks, readCaptionFile } from './captions.js';
+import { Segment } from './types.js';
 
 let cookiesFile: string | null = null;
 async function getCookiesFile(): Promise<string | null> {
@@ -72,6 +74,7 @@ export interface RemoteMeta {
   thumbnail: string | null;
   platform: string;
   isLive: boolean;
+  captions?: CaptionTracks;
 }
 
 export async function probeUrl(url: string): Promise<RemoteMeta> {
@@ -86,7 +89,21 @@ export async function probeUrl(url: string): Promise<RemoteMeta> {
     thumbnail: info.thumbnail ?? null,
     platform: String(info.extractor_key ?? info.extractor ?? 'web'),
     isLive: false,
+    captions: {
+      language: typeof info.language === 'string' ? info.language : null,
+      manual: Object.keys(info.subtitles ?? {}),
+      auto: Object.keys(info.automatic_captions ?? {}),
+    },
   };
+}
+
+/** Fetch one caption track (YouTube json3) without downloading any media. Throws if nothing usable came back. */
+export async function fetchCaptions(url: string, dir: string, plan: CaptionPlan): Promise<Segment[]> {
+  await run([
+    ...(await baseArgs(url)), '--skip-download', plan.auto ? '--write-auto-subs' : '--write-subs', '--sub-langs', plan.key,
+    '--sub-format', 'json3', '-o', path.join(dir, 'cap.%(ext)s'), url,
+  ]);
+  return readCaptionFile(dir);
 }
 
 /** Download to `dir`; returns the resulting file path. `onProgress` gets 0-100. */

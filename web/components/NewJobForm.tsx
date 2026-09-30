@@ -17,7 +17,7 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
   const [wantSummary, setWantSummary] = useState(false);
   const [wantDownload, setWantDownload] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<'mp4' | 'mp3'>('mp4');
-  const [downloadQuality, setDownloadQuality] = useState(1080);
+  const [downloadQuality, setDownloadQuality] = useState(720);
   const [sourceLanguage, setSourceLanguage] = useState('');
   const [targets, setTargets] = useState<string[]>([]);
   const [rights, setRights] = useState(false);
@@ -34,13 +34,13 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
     if (tab === 'url' && !url.trim()) return setError('Paste a link first.');
     if (tab === 'upload' && !file) return setError('Choose a file first.');
     if (tab === 'upload' && file && file.size > MAX_MB * 1048576) return setError(`This file is ${(file.size / 1048576).toFixed(0)} MB, over the ${MAX_MB} MB upload limit. Paste a link instead, or export a smaller or audio-only version and upload that.`);
-    if (!wantTranscript && !(wantDownload && tab === 'url')) return setError('Choose at least one thing to do.');
+    if (!wantTranscript && !(wantDownload && tab === 'url')) return setError('Choose what you want to do first.');
     if (!rights) return setError('Please confirm you have the right to process this content.');
     setBusy(true);
     try {
       let body: Record<string, unknown> = {
         wantTranscript, wantSummary: wantTranscript && wantSummary, wantDownload: tab === 'url' && wantDownload, downloadFormat, downloadQuality,
-        sourceLanguage: sourceLanguage || null, targetLanguages: targets, rightsConfirmed: rights,
+        sourceLanguage: sourceLanguage || null, targetLanguages: wantTranscript ? targets : [], rightsConfirmed: rights,
       };
       if (tab === 'url') {
         body = { ...body, sourceType: 'url', url: url.trim() };
@@ -81,7 +81,9 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
   function pick(o: 'link' | 'upload' | 'audio' | 'download') {
     setOp(o);
     if (o === 'upload') setTab('upload'); else setTab('url');
-    if (o === 'download') { if (hasAddon) { setWantDownload(true); } } else setWantDownload(false);
+    setWantDownload(o === 'download' && hasAddon);
+    setWantTranscript(o !== 'download');
+    if (o === 'download') setWantSummary(false);
     setError('');
   }
   const OPS = [
@@ -93,7 +95,7 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
 
   return (
     <div className="stack">
-      <div className="section-title"><span className="ico" style={{ margin: 0, width: 36, height: 36, borderRadius: 11 }}><Icon name="sparkle" size={18} /></span><h2>Choose an operation</h2></div>
+      <div className="section-title"><span className="ico" style={{ margin: 0, width: 36, height: 36, borderRadius: 11 }}><Icon name="sparkle" size={18} /></span><h2>What do you want to do?</h2></div>
       <div className="ops">
         {OPS.map((o) => (
           <button type="button" key={o.k} className={`op ${op === o.k ? 'on' : ''}`} onClick={() => (o.k === 'download' && !hasAddon ? (window.location.href = '/pricing#addon') : pick(o.k))}>
@@ -103,15 +105,10 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
         ))}
       </div>
     <form className="card glow stack" onSubmit={submit} style={{ marginTop: 6 }}>
-      <div className="tabs" role="tablist">
-        <button type="button" className={tab === 'url' ? 'on' : ''} onClick={() => { setTab('url'); if (op === 'upload') setOp('link'); }}>Paste a link</button>
-        <button type="button" className={tab === 'upload' ? 'on' : ''} onClick={() => { setTab('upload'); setOp('upload'); }}>Upload a file</button>
-      </div>
-
       {tab === 'url' ? (
         <div>
           <label className="field" htmlFor="u">Video or audio link</label>
-          <input id="u" type="url" placeholder="https://www.youtube.com/watch?v=…  ·  vimeo, instagram, tiktok, facebook…" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <input id="u" type="url" placeholder={op === 'audio' ? 'https://…  podcast episode, SoundCloud or direct audio link' : 'https://www.youtube.com/watch?v=…  ·  vimeo, instagram, tiktok, facebook…'} value={url} onChange={(e) => setUrl(e.target.value)} />
         </div>
       ) : (
         <div
@@ -126,32 +123,22 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
         </div>
       )}
 
-      <div className="stack">
-        <label className="check"><input type="checkbox" checked={wantTranscript} onChange={(e) => setWantTranscript(e.target.checked)} /><span><strong>Transcribe</strong> <span className="muted small">— text with timestamps, SRT/VTT export</span></span></label>
-        {wantTranscript && (
-          <label className="check"><input type="checkbox" checked={wantSummary} onChange={(e) => setWantSummary(e.target.checked)} /><span><strong>AI summary</strong> <span className="muted small">— overview, key takeaways, chapters and quotes (+0.2 min per minute)</span></span></label>
-        )}
-        {tab === 'url' && (
-          hasAddon ? (
-            <label className="check"><input type="checkbox" checked={wantDownload} onChange={(e) => setWantDownload(e.target.checked)} /><span><strong>Download the media</strong> <span className="muted small">— save the video or audio file</span></span></label>
-          ) : (
-            <label className="check" style={{ cursor: 'default', opacity: 0.85 }}><input type="checkbox" disabled /><span><strong>Download the media</strong> <span className="pill">Add-on</span> <span className="muted small">— <a href="/pricing#addon">unlock downloads</a> to save video or audio files</span></span></label>
-          )
-        )}
-      </div>
+      {op !== 'download' && (
+        <label className="check"><input type="checkbox" checked={wantSummary} onChange={(e) => setWantSummary(e.target.checked)} /><span><strong>Add an AI summary</strong> <span className="muted small">— overview, key takeaways, chapters and quotes (+0.2 min per minute)</span></span></label>
+      )}
 
-      {tab === 'url' && wantDownload && (
+      {op === 'download' && (
         <div className="row">
           <div><label className="field" htmlFor="fmt">Format</label>
             <select id="fmt" value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value as 'mp4' | 'mp3')}><option value="mp4">Video (MP4)</option><option value="mp3">Audio only (MP3)</option></select></div>
           {downloadFormat === 'mp4' && (
             <div><label className="field" htmlFor="q">Max quality</label>
-              <select id="q" value={downloadQuality} onChange={(e) => setDownloadQuality(Number(e.target.value))}>{[360, 480, 720, 1080, 1440, 2160].map((q) => <option key={q} value={q}>{q}p</option>)}</select></div>
+              <select id="q" value={downloadQuality} onChange={(e) => setDownloadQuality(Number(e.target.value))}>{[[360, 0.4], [480, 0.4], [720, 0.8], [1080, 1.5], [1440, 3], [2160, 3]].map(([q, c]) => <option key={q} value={q}>{q}p · {c} min per minute</option>)}</select></div>
           )}
         </div>
       )}
 
-      {wantTranscript && (
+      {op !== 'download' && (
         <div className="stack">
           <div className="row">
             <div className="grow"><label className="field" htmlFor="sl">Spoken language</label>
@@ -175,7 +162,7 @@ export default function NewJobForm({ hasAddon = false }: { hasAddon?: boolean })
 
       {error && <div className="alert err">{error}</div>}
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted small">Cost: 1 min per minute · +0.5 per translation · +0.2 for a summary · downloads 1 per 10 min. Failed jobs are refunded.</span>
+        <span className="muted small">{op === 'download' ? 'Cost: MP3 1 min per 10 min of audio · MP4 0.4–3 min per minute depending on quality. Video up to 60 min; YouTube video is capped at 720p.' : 'Cost: 1 min per minute · +0.5 per translation · +0.2 for a summary. Up to 3 hours per file.'} Failed jobs are refunded.</span>
         <button className="btn primary" disabled={busy}>{busy ? phase || 'Working…' : 'Start'}</button>
       </div>
     </form>

@@ -11,6 +11,8 @@ const { computeCost } = await import('../src/cost.js');
 const { makeChunks, probeMedia } = await import('../src/ffmpeg.js');
 const { whisperLanguageToCode } = await import('../src/languages.js');
 const { classifyYtdlpError } = await import('../src/errors.js');
+const { planCaptions, parseJson3 } = await import('../src/captions.js');
+const { videoCreditsPerMinute } = await import('../src/cost.js');
 
 // cost rules
 assert.equal(computeCost({ durationSeconds: 61, wantTranscript: true, wantDownload: false, translations: 0 }), 2);
@@ -19,6 +21,35 @@ assert.equal(computeCost({ durationSeconds: 3600, wantTranscript: false, wantDow
 assert.equal(computeCost({ durationSeconds: 5, wantTranscript: true, wantDownload: true, translations: 0 }), 2);
 assert.equal(computeCost({ durationSeconds: 600, wantTranscript: true, wantDownload: false, translations: 0, summary: true }), 12);
 assert.equal(computeCost({ durationSeconds: 30, wantTranscript: true, wantDownload: false, translations: 0, summary: true }), 2);
+
+// video download pricing is by quality; audio stays 1 per 10 min
+assert.equal(computeCost({ durationSeconds: 600, wantTranscript: false, wantDownload: true, translations: 0, downloadFormat: 'mp4', downloadQuality: 720 }), 8);
+assert.equal(computeCost({ durationSeconds: 600, wantTranscript: false, wantDownload: true, translations: 0, downloadFormat: 'mp4', downloadQuality: 1080 }), 15);
+assert.equal(computeCost({ durationSeconds: 600, wantTranscript: false, wantDownload: true, translations: 0, downloadFormat: 'mp4', downloadQuality: 360 }), 4);
+assert.equal(computeCost({ durationSeconds: 600, wantTranscript: false, wantDownload: true, translations: 0, downloadFormat: 'mp3' }), 1);
+assert.equal(videoCreditsPerMinute(2160), 3);
+
+// caption selection
+const T = (language: string | null, manual: string[], auto: string[]) => ({ language, manual, auto });
+assert.deepEqual(planCaptions(T('en', ['en', 'fr'], ['en', 'fr', 'en-orig']), null, 'manual'), { key: 'en', auto: false, lang: 'en' });
+assert.equal(planCaptions(T('en', [], ['en-orig', 'fr']), null, 'manual'), null);              // auto only: not used in manual mode
+assert.deepEqual(planCaptions(T('en', [], ['en-orig', 'fr']), null, 'any'), { key: 'en-orig', auto: true, lang: 'en' });
+assert.equal(planCaptions(T('en', [], ['fr', 'de']), null, 'any'), null);                       // only machine translations: never use
+assert.equal(planCaptions(T('en', ['en'], []), null, 'off'), null);
+assert.deepEqual(planCaptions(T('en', ['en-US'], []), 'en', 'manual'), { key: 'en-US', auto: false, lang: 'en' });
+assert.equal(planCaptions(T('en', ['fr'], []), 'en', 'manual'), null);                          // user says English, only French track
+assert.deepEqual(planCaptions(T(null, ['es'], []), null, 'manual'), { key: 'es', auto: false, lang: 'es' });
+assert.equal(planCaptions(undefined, null, 'manual'), null);
+const segs = parseJson3(JSON.stringify({ events: [
+  { tStartMs: 0, dDurationMs: 0, wpWinPosId: 1 },
+  { tStartMs: 500, dDurationMs: 1500, segs: [{ utf8: 'Hello' }, { utf8: ' there' }] },
+  { tStartMs: 2000, dDurationMs: 1800, segs: [{ utf8: 'and welcome.' }] },
+  { tStartMs: 3800, dDurationMs: 100, segs: [{ utf8: '\n' }] },
+  { tStartMs: 6000, dDurationMs: 2000, segs: [{ utf8: 'Second sentence here.' }] },
+] }));
+assert.deepEqual(segs.map((x) => x.text), ['Hello there and welcome.', 'Second sentence here.']);
+assert.ok(segs[0].start === 0.5 && segs[0].end === 3.8 && segs[1].start === 6);
+assert.deepEqual(parseJson3('not json'), []);
 
 // language mapping
 assert.equal(whisperLanguageToCode('english'), 'en');

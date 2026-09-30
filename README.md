@@ -65,3 +65,10 @@ Objects are namespaced `uploads/...` and `outputs/...`; the worker's retention c
 
 ## YouTube from cloud servers
 YouTube blocks most datacenter IPs ("Sign in to confirm you're not a bot"). Reliable options: (1) a residential proxy: set `YTDLP_PROXY` on the worker; by default only YouTube hosts use it (`YTDLP_PROXY_DOMAINS`), and audio-only transcription downloads are small (roughly 60 MB per hour of video); (2) run the worker on a home computer (residential IP); (3) cookies from a dedicated YouTube account in `YTDLP_COOKIES_B64` (may violate YouTube's terms and can get the account flagged).
+
+## Limits, pricing rules and shortcuts (added before launch)
+* Max 3 h per job (`MAX_DURATION_SECONDS`), video (MP4) downloads max 1 h (`MAX_VIDEO_DOWNLOAD_SECONDS`). Both are checked before any credits are charged.
+* Video downloads are priced by quality (0.4 / 0.8 / 1.5 / 3 credits per minute); audio stays 1 per 10 min. YouTube video goes through the paid proxy and is capped at `PROXIED_MAX_QUALITY` (720). Downloads add-on: $19/month (`web/lib/plans.ts`; create the Stripe price at that amount).
+* Retries reuse the stored transcript, translations and summary, so a failed later step never repeats paid work or charges again.
+* YouTube captions: `CAPTIONS_MODE=manual` (default) uses creator-made captions when they exist and otherwise falls back to Whisper; `any` also uses YouTube's auto-captions (faster, but no punctuation and less accurate); `off` disables it.
+* Job-finished email via Resend: set `RESEND_API_KEY`, `EMAIL_FROM` (a sender on a domain verified in Resend) and `APP_URL` on the worker. Sent only for jobs that took at least `EMAIL_MIN_SECONDS` (120) and for final failures.

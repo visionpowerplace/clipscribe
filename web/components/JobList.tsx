@@ -9,7 +9,7 @@ export interface JobRow {
 }
 
 export const STAGE_LABEL: Record<string, string> = {
-  probing: 'Checking link', downloading: 'Downloading', extracting: 'Preparing audio', transcribing: 'Transcribing', translating: 'Translating', summarizing: 'Summarizing', uploading: 'Saving file',
+  probing: 'Checking link', captions: 'Fetching captions', downloading: 'Downloading', extracting: 'Preparing audio', transcribing: 'Transcribing', translating: 'Translating', summarizing: 'Summarizing', uploading: 'Saving file',
 };
 
 export default function JobList({ initial }: { initial: JobRow[] }) {

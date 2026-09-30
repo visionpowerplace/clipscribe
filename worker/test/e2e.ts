@@ -12,6 +12,7 @@ const oa = http.createServer((req, res) => {
   req.on('end', () => {
     res.setHeader('content-type', 'application/json');
     if (req.url!.endsWith('/audio/transcriptions')) {
+      whisperCalls++;
       res.end(JSON.stringify({ language: 'english', segments: [{ start: 0, end: 4, text: ' Hello world.', no_speech_prob: 0, avg_logprob: -0.1 }, { start: 4, end: 9, text: ' This is a test.', no_speech_prob: 0, avg_logprob: -0.1 }] }));
     } else if (JSON.parse(Buffer.concat(b).toString()).messages[0].content.includes('structured summary')) {
       res.end(JSON.stringify({ choices: [{ message: { content: '```json\n' + JSON.stringify({ tldr: 'A short test clip.', key_points: ['Says hello', 'Is a test'], chapters: [{ start: 3.7, title: 'Intro' }, { start: 4.2, title: 'The test' }], quotes: [{ start: 4, text: 'This is a test.' }] }) + '\n```' } }] }));
@@ -38,15 +39,16 @@ const db: Record<string, any[]> = { jobs: [], transcripts: [] };
 const calls: any[] = [];
 const uploaded: string[] = [];
 let addon = true;
+let whisperCalls = 0;
 (sb as any).from = (table: string) => {
   let patch: any = null; let filter: any = null; let mode = '';
   const chain: any = {
     select: () => { mode = 'select'; return chain; },
     single: () => Promise.resolve({ data: table === 'profiles' ? { downloads_addon: addon } : null, error: null }),
     update: (p: any) => { patch = p; mode = 'update'; return chain; },
-    upsert: (row: any) => { db[table].push(row); return Promise.resolve({ error: null }); },
+    upsert: (row: any) => { db[table].push({ ...row }); return Promise.resolve({ error: null }); },
     eq: (k: string, v: any) => { filter = [k, v]; if (mode === 'update') { db[table].filter((r) => r[k] === v).forEach((r) => Object.assign(r, patch)); } return chain; },
-    then: (res: any) => res({ error: null }),
+    then: (res: any) => res({ error: null, data: mode === 'select' && table === 'transcripts' ? db.transcripts.filter((r) => r.job_id === filter?.[1]) : undefined }),
   };
   return chain;
 };
@@ -78,9 +80,9 @@ assert.equal(row.summary.tldr, 'A short test clip.');
 assert.deepEqual(row.summary.chapters.map((c: any) => c.start), [4, 4]); // snapped to real segment starts (0/4)
 assert.equal(row.summary.lang, 'en');
 assert.equal(db.transcripts.find((t) => t.lang === 'fr').segments[0].text, '[fr] Hello world.');
-// cost: transcribe 2 min + 1 translation ceil(2*.5)=1 + download ceil(2/10)=1 + summary ceil(2*.2)=1 => 5
+// cost: transcribe 2 + translation 1 + 720p video ceil(2*0.8)=2 + summary 1 => 6
 const charge = calls.find(([fn]) => fn === 'consume_credits');
-assert.equal(charge[1].p_amount, 5, JSON.stringify(charge));
+assert.equal(charge[1].p_amount, 6, JSON.stringify(charge));
 assert.ok(!calls.some(([fn]) => fn === 'refund_job_credits'));
 console.log('E2E PIPELINE PASSED (charged', charge[1].p_amount, 'credits)');
 
@@ -114,4 +116,64 @@ assert.equal(db.jobs[4].status, 'completed', db.jobs[4].error);
 assert.equal(db.transcripts.length, 1);
 assert.equal(db.jobs[4].duration_seconds, 95);
 console.log('UPLOAD FLOW PASSED');
+
+// retry: a second attempt must reuse the stored transcript/translation/summary instead of paying for them again
+db.jobs.push({ id: 'job-6' });
+db.transcripts.length = 0;
+db.transcripts.push({ job_id: 'job-6', lang: 'en', is_original: true, segments: [{ start: 0, end: 4, text: 'Hello world.' }, { start: 4, end: 9, text: 'This is a test.' }] });
+db.transcripts.push({ job_id: 'job-6', lang: 'fr', is_original: false, segments: [{ start: 0, end: 4, text: '[fr] Hello world.' }] });
+const callsBefore = whisperCalls, chargesBefore = calls.filter(([fn]) => fn === 'consume_credits').length;
+await processJob({ ...job, id: 'job-6', attempts: 2, credits_charged: true, want_download: false, want_summary: true, summary: { lang: 'en', tldr: 'kept', key_points: [], chapters: [], quotes: [] } as any, target_languages: ['fr'] });
+assert.equal(db.jobs[5].status, 'completed', db.jobs[5].error);
+assert.equal(whisperCalls, callsBefore, 'retry must not re-run speech recognition');
+assert.equal(calls.filter(([fn]) => fn === 'consume_credits').length, chargesBefore, 'retry must not charge again');
+assert.equal(db.transcripts.filter((t) => t.job_id === 'job-6').length, 2);
+console.log('RETRY REUSE PASSED');
+
+// limits: 95 s clip with a 60 s video-download cap -> friendly error, refund not needed (nothing charged before the check)
+const { config } = await import('../src/config.js');
+addon = true;
+config.maxVideoDownloadSeconds = 60;
+db.jobs.push({ id: 'job-7' });
+const chargesB = calls.filter(([fn]) => fn === 'consume_credits').length;
+await processJob({ ...job, id: 'job-7', want_download: true, download_format: 'mp4', want_summary: false, target_languages: [] });
+assert.equal(db.jobs[6].status, 'failed');
+assert.ok(/limited to 1 minutes/.test(db.jobs[6].error), db.jobs[6].error);
+assert.equal(calls.filter(([fn]) => fn === 'consume_credits').length, chargesB);
+config.maxVideoDownloadSeconds = 3600;
+config.maxDurationSeconds = 60;
+db.jobs.push({ id: 'job-8' });
+await processJob({ ...job, id: 'job-8', want_download: false, want_summary: false, target_languages: [] });
+assert.equal(db.jobs[7].status, 'failed');
+assert.ok(/limit/.test(db.jobs[7].error), db.jobs[7].error);
+config.maxDurationSeconds = 3 * 3600;
+console.log('LIMITS PASSED');
+
+// email: long job -> Resend called once with link; short job -> no email; API failure never fails the job
+const sent: any[] = [];
+const rs = http.createServer((req, res) => { const b: Buffer[] = []; req.on('data', (d) => b.push(d)); req.on('end', () => { sent.push({ auth: req.headers.authorization, body: JSON.parse(Buffer.concat(b).toString()) }); res.statusCode = sent.length === 3 ? 500 : 200; res.end('{"id":"x"}'); }); });
+await new Promise<void>((r) => rs.listen(0, r));
+process.env.RESEND_API_URL = `http://127.0.0.1:${(rs.address() as any).port}`;
+config.resendKey = 're_test'; config.emailFrom = 'ClipScribe <noreply@example.com>'; config.appUrl = 'https://app.example.com'; config.emailMinSeconds = 120;
+const origGet = (sb as any).from;
+(sb as any).from = (t: string) => { const c = origGet(t); if (t === 'profiles') { const single = c.single; c.single = () => t === 'profiles' ? Promise.resolve({ data: { email: 'u@example.com', downloads_addon: true }, error: null }) : single(); } return c; };
+const old = new Date(Date.now() - 5 * 60_000).toISOString();
+db.jobs.push({ id: 'job-9' }); db.transcripts.length = 0;
+await processJob({ ...job, id: 'job-9', created_at: old, want_download: false, want_summary: false, target_languages: [], title: null });
+assert.equal(sent.length, 1);
+assert.equal(sent[0].auth, 'Bearer re_test');
+assert.deepEqual(sent[0].body.to, ['u@example.com']);
+assert.ok(sent[0].body.html.includes('https://app.example.com/jobs/job-9'));
+db.jobs.push({ id: 'job-10' }); db.transcripts.length = 0;
+await processJob({ ...job, id: 'job-10', created_at: new Date().toISOString(), want_download: false, want_summary: false, target_languages: [] });
+assert.equal(sent.length, 1, 'short jobs are not emailed');
+db.jobs.push({ id: 'job-11' }); db.transcripts.length = 0;
+await processJob({ ...job, id: 'job-11', created_at: old, want_download: false, want_summary: false, target_languages: [] });
+assert.equal(db.jobs[10].status, 'completed', 'a failing email API must not fail the job');
+db.jobs.push({ id: 'job-12' });
+await processJob({ ...job, id: 'job-12', created_at: old, source_url: 'http://127.0.0.1:8766/missing.mp4', want_download: false });
+assert.equal(db.jobs[11].status, 'failed');
+assert.ok(sent.at(-1)!.body.subject.includes("couldn't finish"), sent.at(-1)!.body.subject);
+console.log('EMAIL PASSED');
+rs.close();
 web.kill(); oa.close();

@@ -11,7 +11,10 @@ import { transcribeChunks } from './transcribe.js';
 import { summarizeTranscript } from './summarize.js';
 import { translateSegments } from './translate.js';
 import { Job, Segment } from './types.js';
-import { downloadMedia, probeUrl } from './ytdlp.js';
+import { downloadMedia, fetchCaptions, probeUrl, shouldProxy } from './ytdlp.js';
+import { planCaptions } from './captions.js';
+import { notifyJobDone } from './email.js';
+import type { RemoteMeta } from './ytdlp.js';
 
 const MIME: Record<string, string> = { mp4: 'video/mp4', mp3: 'audio/mpeg', mkv: 'video/x-matroska', webm: 'video/webm' };
 
@@ -45,10 +48,14 @@ export async function processJob(job: Job): Promise<void> {
     let title = job.title ?? job.original_filename ?? 'Untitled';
     let platform = job.source_type === 'upload' ? 'upload' : 'web';
     let thumbnail: string | null = null;
+    let meta: RemoteMeta | null = null;
     let duration = 0;
     let localSource: string | null = null;
 
     const wantDownload = job.want_download && job.source_type === 'url';
+    // Video fetched through the paid proxy is capped (bandwidth is the real cost); the user is charged for what they actually get.
+    const effQuality = job.source_type === 'url' && shouldProxy(job.source_url ?? '')
+      ? Math.min(job.download_quality, config.proxiedMaxQuality) : job.download_quality;
     let downloaded: string | null = null; // file the user asked to download
     let audioSource: string | null = localSource;
     let acquired = false;
@@ -58,7 +65,7 @@ export async function processJob(job: Job): Promise<void> {
         await report('downloading', 5, true);
         downloaded = await downloadMedia(
           job.source_url!, tmp,
-          job.download_format === 'mp3' ? { kind: 'audio', audioFormat: 'mp3' } : { kind: 'video', quality: job.download_quality },
+          job.download_format === 'mp3' ? { kind: 'audio', audioFormat: 'mp3' } : { kind: 'video', quality: effQuality },
           (p) => void report('downloading', 5 + p * 0.25),
         );
         audioSource = downloaded;
@@ -75,7 +82,7 @@ export async function processJob(job: Job): Promise<void> {
         throw new UserError('Downloading media requires the Downloads add-on. You can still transcribe this link without it.', 'addon_required');
     }
     if (job.source_type === 'url') {
-      const meta = await probeUrl(job.source_url!);
+      meta = await probeUrl(job.source_url!);
       title = meta.title; platform = meta.platform; thumbnail = meta.thumbnail; duration = meta.duration;
       if (!duration) {
         // Direct file links (and a few extractors) don't report a length: fetch first, then measure with ffprobe.
@@ -95,6 +102,17 @@ export async function processJob(job: Job): Promise<void> {
     if (duration > config.maxDurationSeconds)
       throw new UserError(`This media is longer than the ${Math.round(config.maxDurationSeconds / 3600)}-hour limit.`, 'too_long');
 
+    if (wantDownload && job.download_format === 'mp4' && duration > config.maxVideoDownloadSeconds)
+      throw new UserError(`Video downloads are limited to ${Math.round(config.maxVideoDownloadSeconds / 60)} minutes. You can still download the audio (MP3) or transcribe this link.`, 'too_long');
+
+    // ---------- 1b. Anything a previous attempt already produced (retries must not repeat paid work) ----------
+    const existing = new Map<string, { is_original: boolean; segments: Segment[] }>();
+    if (job.attempts > 1) {
+      const { data: rows } = await sb.from('transcripts').select('lang,is_original,segments').eq('job_id', job.id);
+      for (const r of (rows ?? []) as any[]) existing.set(r.lang, { is_original: r.is_original, segments: r.segments });
+    }
+    const prevOriginal = [...existing.entries()].find(([, v]) => v.is_original);
+
     await sb.from('jobs').update({ title, platform, thumbnail, duration_seconds: Math.round(duration) }).eq('id', job.id);
 
     // ---------- 2. Charge credits (once, refunded on failure) ----------
@@ -105,6 +123,8 @@ export async function processJob(job: Job): Promise<void> {
         wantDownload,
         translations: job.want_transcript ? job.target_languages.length : 0,
         summary: job.want_transcript && job.want_summary,
+        downloadFormat: job.download_format,
+        downloadQuality: effQuality,
       });
       const { data: ok, error } = await sb.rpc('consume_credits', { p_user: job.user_id, p_amount: cost, p_job: job.id });
       if (error) throw new Error(`consume_credits failed: ${error.message}`);
@@ -115,13 +135,37 @@ export async function processJob(job: Job): Promise<void> {
         );
     }
 
-    // ---------- 3. Acquire media (if not already fetched to measure length) ----------
-    if (job.source_type === 'url' && !acquired) await acquire();
+    // ---------- 3. Get the transcript source: earlier attempt, YouTube captions, or the audio itself ----------
+    let original: Segment[] = prevOriginal ? prevOriginal[1].segments : [];
+    let detected: string | null = prevOriginal ? (prevOriginal[0] === 'und' ? job.source_language : prevOriginal[0]) : job.source_language;
+    let originalIsNew = false;
+    if (prevOriginal) console.log(`[job ${job.id}] reusing transcript from a previous attempt`);
+
+    if (job.source_type === 'url' && job.want_transcript && !original.length && platform.toLowerCase() === 'youtube') {
+      const plan = planCaptions(meta?.captions, job.source_language, config.captionsMode);
+      if (plan) {
+        try {
+          await report('captions', 30, true);
+          const capDir = path.join(tmp, 'captions');
+          await import('node:fs/promises').then((f) => f.mkdir(capDir, { recursive: true }));
+          const segs = await fetchCaptions(job.source_url!, capDir, plan);
+          if (segs.length >= 3) {
+            original = segs; detected = plan.lang; originalIsNew = true;
+            console.log(`[job ${job.id}] using ${plan.auto ? 'auto' : 'manual'} YouTube captions (${plan.key}), ${segs.length} segments`);
+          }
+        } catch (e: any) {
+          console.warn(`[job ${job.id}] captions unavailable, falling back to speech recognition: ${e?.message ?? e}`);
+        }
+      }
+    }
+
+    if (job.source_type === 'url' && !acquired) {
+      const needMedia = wantDownload || (job.want_transcript && !original.length);
+      if (needMedia) await acquire();
+    }
 
     // ---------- 4. Transcribe ----------
-    let original: Segment[] = [];
-    let detected: string | null = job.source_language;
-    if (job.want_transcript) {
+    if (job.want_transcript && !original.length) {
       await report('extracting', 32, true);
       const info = await probeMedia(audioSource!);
       if (!info.hasAudio) throw new UserError('This media has no audio track to transcribe.', 'no_audio');
@@ -134,14 +178,20 @@ export async function processJob(job: Job): Promise<void> {
       original = t.segments;
       detected = t.language ?? job.source_language;
       if (!original.length) throw new UserError('No speech was detected in this media.', 'no_speech');
+      originalIsNew = true;
+    }
 
+    if (job.want_transcript) {
       const origLang = detected ?? 'und';
-      await sb.from('transcripts').upsert({ job_id: job.id, lang: origLang, is_original: true, segments: original }, { onConflict: 'job_id,lang' });
-      await sb.from('jobs').update({ detected_language: origLang }).eq('id', job.id);
+      if (originalIsNew) {
+        await sb.from('transcripts').upsert({ job_id: job.id, lang: origLang, is_original: true, segments: original }, { onConflict: 'job_id,lang' });
+        await sb.from('jobs').update({ detected_language: origLang }).eq('id', job.id);
+      }
 
-      // ---------- 5. Translate ----------
+      // ---------- 5. Translate (skipping languages finished by an earlier attempt) ----------
       const targets = job.target_languages.filter((l) => l !== detected);
       for (let i = 0; i < targets.length; i++) {
+        if (existing.get(targets[i]) && !existing.get(targets[i])!.is_original) continue;
         await report('translating', 80 + (i / targets.length) * 14, true);
         const translated = await translateSegments(original, detected, targets[i], (f) =>
           void report('translating', 80 + ((i + f) / targets.length) * 14),
@@ -151,7 +201,7 @@ export async function processJob(job: Job): Promise<void> {
     }
 
     // ---------- 5b. AI summary (of the original transcript) ----------
-    if (job.want_transcript && job.want_summary) {
+    if (job.want_transcript && job.want_summary && !job.summary) {
       await report('summarizing', 96, true);
       const summary = await summarizeTranscript(original, detected, title);
       await sb.from('jobs').update({ summary }).eq('id', job.id);
@@ -172,6 +222,7 @@ export async function processJob(job: Job): Promise<void> {
       status: 'completed', stage: null, progress: 100, media_path: mediaPath, media_filename: mediaFilename,
       finished_at: new Date().toISOString(), error: null,
     }).eq('id', job.id);
+    await notifyJobDone(job, { ok: true, title });
 
     // Uploaded originals are deleted as soon as the job succeeds.
     if (job.upload_path) {
@@ -198,6 +249,7 @@ async function handleFailure(job: Job, err: any): Promise<void> {
   const message = isUser ? err.message : 'Something went wrong on our side while processing this. You were not charged.';
   await sb.from('jobs').update({ status: 'failed', error: message, stage: null, finished_at: new Date().toISOString() }).eq('id', job.id);
   await sb.rpc('refund_job_credits', { p_job: job.id });
+  await notifyJobDone(job, { ok: false, message });
   if (job.upload_path) {
     await removeObjects('uploads', [job.upload_path]).catch(() => {});
     await sb.from('jobs').update({ upload_path: null }).eq('id', job.id);

@@ -20,7 +20,7 @@ export const PACKS: Pack[] = [
 ];
 
 /** Optional paid add-on that unlocks downloading video/audio from links (separate monthly subscription). */
-export const ADDON = { key: 'downloads', name: 'Downloads add-on', price: 9, env: 'STRIPE_PRICE_ADDON_DOWNLOADS', blurb: 'Save video (MP4) or audio (MP3) from supported links' };
+export const ADDON = { key: 'downloads', name: 'Downloads add-on', price: 19, env: 'STRIPE_PRICE_ADDON_DOWNLOADS', blurb: 'Save video (MP4) or audio (MP3) from supported links' };
 
 export const priceIdFor = (item: { env: string }) => process.env[item.env] || '';
 export const planByPriceId = (id?: string | null) => (id ? PLANS.find((p) => priceIdFor(p) === id) : undefined);
