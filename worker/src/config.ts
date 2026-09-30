@@ -20,6 +20,12 @@ export const config = {
   translateKey: process.env.TRANSLATE_API_KEY || process.env.TRANSCRIBE_API_KEY || process.env.OPENAI_API_KEY || req('TRANSLATE_API_KEY'),
   translateBaseUrl: process.env.TRANSLATE_BASE_URL || process.env.TRANSCRIBE_BASE_URL || undefined,
   translateModel: process.env.TRANSLATE_MODEL || 'gpt-4o-mini',
+  // If the main model is unavailable for this key (HTTP 404 / model_not_found) the next one is tried. Defaults suit Groq.
+  translateFallbacks: (process.env.TRANSLATE_MODEL_FALLBACKS ??
+    ((process.env.TRANSLATE_BASE_URL || process.env.TRANSCRIBE_BASE_URL || '').includes('groq.com')
+      ? 'openai/gpt-oss-120b,openai/gpt-oss-20b,llama-3.1-8b-instant' : ''))
+    .split(',').map((m) => m.trim()).filter(Boolean),
+  translateReasoningEffort: process.env.TRANSLATE_REASONING_EFFORT || '', // e.g. "low" for gpt-oss models
   // Optional Cloudflare R2 (or any S3-compatible) storage. When set, uploads/outputs live there instead of Supabase Storage
   // (Supabase's free plan caps objects at 50 MB; R2's free tier has 10 GB and no egress fees).
   r2: process.env.R2_BUCKET && (process.env.R2_ENDPOINT || process.env.R2_ACCOUNT_ID)

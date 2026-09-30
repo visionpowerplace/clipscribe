@@ -1,9 +1,6 @@
-import OpenAI from 'openai';
-import { config } from './config.js';
+import { chat } from './llm.js';
 import { LANGUAGES } from './languages.js';
 import { Segment, Summary } from './types.js';
-
-const openai = new OpenAI({ apiKey: config.translateKey, baseURL: config.translateBaseUrl, maxRetries: 6, timeout: 3 * 60_000 });
 
 const CHUNK_CHARS = 9000; // ~2.3k tokens: keeps us inside free-tier per-minute token limits
 
@@ -36,23 +33,7 @@ function lenientJson(content: string): any | null {
 
 async function askJson(system: string, user: string): Promise<any> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    let content = '';
-    try {
-      const res = await openai.chat.completions.create({
-        model: config.translateModel, temperature: 0.3, response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      });
-      content = res.choices[0]?.message?.content ?? '';
-    } catch (e: any) {
-      if (e?.status === 400 || e?.status === 422) {
-        // provider rejected JSON mode: retry without it
-        const res = await openai.chat.completions.create({
-          model: config.translateModel, temperature: 0.3,
-          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-        });
-        content = res.choices[0]?.message?.content ?? '';
-      } else throw e;
-    }
+    const content = await chat([{ role: 'system', content: system }, { role: 'user', content: user }], { json: true, temperature: 0.3 });
     const j = lenientJson(content);
     if (j && typeof j === 'object') return j;
   }

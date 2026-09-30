@@ -1,9 +1,6 @@
-import OpenAI from 'openai';
-import { config } from './config.js';
+import { chat } from './llm.js';
 import { LANGUAGES } from './languages.js';
 import { Segment } from './types.js';
-
-const openai = new OpenAI({ apiKey: config.translateKey, baseURL: config.translateBaseUrl, maxRetries: 6, timeout: 3 * 60_000 });
 
 const BATCH_LINES = 40;
 const BATCH_CHARS = 5000;
@@ -36,17 +33,7 @@ async function translateLines(lines: string[], context: string[], src: string, t
     { role: 'system' as const, content: system },
     { role: 'user' as const, content: JSON.stringify({ context_before: context, lines }) },
   ];
-  let content = '';
-  try {
-    const res = await openai.chat.completions.create({ model: config.translateModel, temperature: 0.2, response_format: { type: 'json_object' }, messages });
-    content = res.choices[0]?.message?.content ?? '';
-  } catch (e: any) {
-    // Some models/providers reject JSON mode: retry once without it and parse leniently.
-    if (e?.status === 400 || e?.status === 422) {
-      const res = await openai.chat.completions.create({ model: config.translateModel, temperature: 0.2, messages });
-      content = res.choices[0]?.message?.content ?? '';
-    } else throw e;
-  }
+  const content = await chat(messages, { json: true, temperature: 0.2 });
   return parseLines(content, lines.length);
 }
 
