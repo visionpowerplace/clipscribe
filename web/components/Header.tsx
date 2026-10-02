@@ -1,16 +1,19 @@
 import Link from 'next/link';
 import Icon from '@/components/Icons';
 import { createClient } from '@/lib/supabase/server';
+import { isAdminEmail } from '@/lib/admin';
 
 export default async function Header() {
   const name = process.env.NEXT_PUBLIC_APP_NAME || 'ClipScribe';
   let minutes: number | null = null;
   let signedIn = false;
+  let isAdmin = false;
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       signedIn = true;
+      isAdmin = isAdminEmail(user.email);
       const { data: p } = await supabase.from('profiles').select('sub_minutes,pack_minutes').eq('id', user.id).single();
       if (p) minutes = p.sub_minutes + p.pack_minutes;
     }
@@ -23,6 +26,7 @@ export default async function Header() {
           <Link href="/pricing" className="nav hide-sm">Pricing</Link>
           {signedIn ? (
             <>
+              {isAdmin && <Link href="/admin" className="nav">Admin</Link>}
               <Link href="/dashboard" className="nav">Dashboard</Link>
               {minutes !== null && <Link href="/pricing" className="pill mins" title="Minutes remaining">{minutes} min left</Link>}
               <form action="/auth/signout" method="post"><button className="btn sm" type="submit">Sign out</button></form>

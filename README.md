@@ -72,3 +72,6 @@ YouTube blocks most datacenter IPs ("Sign in to confirm you're not a bot"). Reli
 * Retries reuse the stored transcript, translations and summary, so a failed later step never repeats paid work or charges again.
 * YouTube captions: `CAPTIONS_MODE=manual` (default) uses creator-made captions when they exist and otherwise falls back to Whisper; `any` also uses YouTube's auto-captions (faster, but no punctuation and less accurate); `off` disables it.
 * Job-finished email via Resend: set `RESEND_API_KEY`, `EMAIL_FROM` (a sender on a domain verified in Resend) and `APP_URL` on the worker. Sent only for jobs that took at least `EMAIL_MIN_SECONDS` (120) and for final failures.
+
+## Owner admin area (`/admin`)
+Set `ADMIN_EMAILS` (comma-separated) on the web app and run `supabase/migrations/0004_admin.sql`. Signed-in admins see an **Admin** link in the header; anyone else gets a 404. The overview shows customers, paying subscribers, estimated MRR, 7-day success rate, per-platform health and recent failures. Each customer page lets you add/remove minutes, switch the downloads add-on, suspend/reactivate the account, refund a job and keep a private note; every action is written to `admin_actions`.

@@ -67,11 +67,11 @@ section.block { padding: 50px 0; } .sec-head { text-align: center; max-width: 64
 .steps { counter-reset: s; } .step { position: relative; padding-top: 6px; } .step::before { counter-increment: s; content: counter(s); width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); color: #fff; font-weight: 800; margin-bottom: 12px; box-shadow: 0 6px 20px rgba(99,102,241,.4); }
 .cta-band { text-align: center; padding: 48px 24px; background: linear-gradient(135deg, rgba(99,102,241,.22), rgba(34,211,238,.1)); border: 1px solid var(--border-strong); border-radius: 24px; }
 
-input[type=text], input[type=url], input[type=email], input[type=password], select {
+input[type=text], input[type=url], input[type=email], input[type=password], input[type=number], input:not([type]), textarea, select {
   width: 100%; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: rgba(0,0,0,.35); color: var(--text); font: inherit; }
 select option { background: #151729; color: var(--text); }
 input::placeholder { color: #6c7297; }
-input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,123,255,.25); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,123,255,.25); }
 label.field { display: block; font-weight: 650; font-size: .88rem; margin-bottom: 7px; color: #c9cdf0; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; } .row > .grow { flex: 1; min-width: 200px; }
 .stack > * + * { margin-top: 16px; }

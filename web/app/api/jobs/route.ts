@@ -66,7 +66,9 @@ export async function POST(req: Request) {
   }
 
   // Fast pre-checks (the worker does the authoritative charge once it knows the duration).
-  const { data: profile } = await supabase.from('profiles').select('sub_minutes,pack_minutes,downloads_addon').eq('id', user!.id).single();
+  const { data: profile } = await supabase.from('profiles').select('sub_minutes,pack_minutes,downloads_addon,suspended').eq('id', user!.id).single();
+  if (profile?.suspended)
+    return NextResponse.json({ error: 'This account is suspended. Please contact support.', code: 'suspended' }, { status: 403 });
   if (wantDownload && !profile?.downloads_addon)
     return NextResponse.json({ error: 'Downloading media needs the Downloads add-on.', code: 'addon_required' }, { status: 402 });
   if (!profile || profile.sub_minutes + profile.pack_minutes <= 0)
