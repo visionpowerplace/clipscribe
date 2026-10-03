@@ -77,9 +77,9 @@ export default function Home() {
         <div className="sec-head"><h2>Simple pricing</h2><p>One minute of audio or video = one credit. Start free, upgrade when you need more.</p></div>
         <div className="grid g4">
           {PLANS.map((p) => (
-            <div className={`card ${p.key === 'pro' ? 'plan featured' : ''}`} key={p.key}><h3>{p.name}</h3><div className="price">${p.price}<small>/mo</small></div><p className="muted" style={{ margin: 0 }}>{p.minutes.toLocaleString()} minutes / month</p></div>
+            <Link href={`/pricing?buy=plan:${p.key}`} className={`card ${p.key === 'pro' ? 'plan featured' : ''}`} key={p.key} style={{ display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}><h3>{p.name}</h3><div className="price">${p.price}<small>/mo</small></div><p className="muted" style={{ margin: 0 }}>{p.minutes.toLocaleString()} minutes / month</p><p className="small" style={{ margin: '12px 0 0', fontWeight: 600 }}>Get {p.name} →</p></Link>
           ))}
-          <div className="card"><h3>Pay as you go</h3><div className="price">${PACKS[0].price}<small> / {PACKS[0].minutes} min</small></div><p className="muted" style={{ margin: 0 }}>Minute packs that never expire.</p></div>
+          <Link href={`/pricing?buy=pack:${PACKS[0].key}`} className="card" style={{ display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}><h3>Pay as you go</h3><div className="price">${PACKS[0].price}<small> / {PACKS[0].minutes} min</small></div><p className="muted" style={{ margin: 0 }}>Minute packs that never expire.</p><p className="small" style={{ margin: '12px 0 0', fontWeight: 600 }}>Buy a pack →</p></Link>
         </div>
         <p style={{ marginTop: 18, textAlign: 'center' }}><Link href="/pricing" className="btn">Compare plans</Link></p>
       </section>

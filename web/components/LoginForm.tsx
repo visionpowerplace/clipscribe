@@ -9,6 +9,7 @@ export default function LoginForm() {
   const [mode, setMode] = useState<'signin' | 'signup'>(params.get('mode') === 'signin' ? 'signin' : 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'err' | 'ok'; text: string } | null>(params.get('error') ? { kind: 'err', text: 'Sign-in link expired. Please try again.' } : null);
   const supabase = createClient();
@@ -20,7 +21,7 @@ export default function LoginForm() {
     if (mode === 'signup') {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo() } });
       if (error) setMsg({ kind: 'err', text: error.message });
-      else if (data.session) window.location.href = next;
+      else if (data.session) { await fetch('/api/welcome', { method: 'POST' }).catch(() => {}); window.location.href = next; }
       else setMsg({ kind: 'ok', text: 'Check your email to confirm your account, then sign in.' });
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -52,10 +53,14 @@ export default function LoginForm() {
       </div>
       <div>
         <h2>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h2>
-        <p className="muted" style={{ margin: 0 }}>{mode === 'signup' ? 'You get 10 free minutes. No card needed.' : 'Sign in to continue.'}</p>
+        <p className="muted" style={{ margin: 0 }}>{mode === 'signup' ? (next.startsWith('/pricing') ? 'Create your free account, then we take you straight to checkout.' : 'You get 10 free minutes. No card needed.') : 'Sign in to continue.'}</p>
       </div>
       <div><label className="field" htmlFor="email">Email</label><input id="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-      <div><label className="field" htmlFor="pw">Password</label><input id="pw" type="password" required minLength={8} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+      <div><label className="field" htmlFor="pw">Password</label><div style={{ position: 'relative' }}>
+          <input id="pw" type={showPw ? 'text' : 'password'} required minLength={8} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} style={{ paddingRight: 64 }} />
+          <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'} aria-pressed={showPw}
+            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, color: 'var(--muted, #9aa0b4)', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: '6px 8px' }}>{showPw ? 'Hide' : 'Show'}</button>
+        </div></div>
       {msg && <div className={`alert ${msg.kind}`}>{msg.text}</div>}
       <button className="btn primary" disabled={busy} type="submit">{mode === 'signup' ? 'Create account' : 'Sign in'}</button>
       <div className="row" style={{ justifyContent: 'space-between' }}>

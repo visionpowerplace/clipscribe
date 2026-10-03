@@ -3,6 +3,12 @@ import type Stripe from 'stripe';
 import { PLANS, isAddonPrice, packByKey, planByPriceId } from '@/lib/plans';
 import { stripe } from '@/lib/stripe';
 import { adminClient } from '@/lib/supabase/admin';
+import { sendPurchaseEmail } from '@/lib/email';
+
+const balanceOf = async (userId: string) => {
+  const { data } = await adminClient().from('profiles').select('sub_minutes,pack_minutes').eq('id', userId).single();
+  return data ? (data.sub_minutes ?? 0) + (data.pack_minutes ?? 0) : null;
+};
 
 export const runtime = 'nodejs';
 
@@ -38,7 +44,14 @@ export async function POST(req: Request) {
         if (!userId) break;
         if (s.mode === 'payment' && s.payment_status === 'paid' && s.metadata?.kind === 'pack') {
           const pack = packByKey(s.metadata.key);
-          if (pack) await db.rpc('add_pack_minutes', { p_user: userId, p_minutes: pack.minutes, p_ref: `cs_${s.id}` });
+          if (pack) {
+            await db.rpc('add_pack_minutes', { p_user: userId, p_minutes: pack.minutes, p_ref: `cs_${s.id}` });
+            await sendPurchaseEmail({
+              ref: `cs_${s.id}`, to: s.customer_details?.email ?? s.customer_email, title: `${pack.minutes.toLocaleString()}-minute pack`,
+              detail: `Your payment went through and ${pack.minutes.toLocaleString()} minutes have been added to your account. They never expire.`,
+              amountCents: s.amount_total, currency: s.currency, balance: await balanceOf(userId),
+            });
+          }
         } else if (s.mode === 'subscription') {
           if (s.metadata?.kind === 'addon') {
             await db.from('profiles').update({ stripe_customer_id: idOf(s.customer as any), addon_subscription_id: idOf(s.subscription as any) }).eq('id', userId);
@@ -57,6 +70,14 @@ export async function POST(req: Request) {
         const priceId = linePrice(line);
         if (isAddonPrice(priceId)) {
           await db.from('profiles').update({ downloads_addon: true, addon_status: 'active', addon_period_end: iso(line?.period?.end) }).eq('id', userId);
+          if (inv.billing_reason === 'subscription_create' || inv.billing_reason === 'subscription_cycle') {
+            await sendPurchaseEmail({
+              ref: `inv_${inv.id}`, to: inv.customer_email, title: 'Downloads add-on',
+              detail: inv.billing_reason === 'subscription_create' ? 'Your Downloads add-on is active. You can now save video (MP4) and audio (MP3) from supported links.' : 'Your Downloads add-on renewed for another month.',
+              amountCents: inv.amount_paid, currency: inv.currency, receiptUrl: inv.hosted_invoice_url,
+              footnote: 'Downloads use minutes at the rates shown on the pricing page. Manage or cancel any time from Manage billing on your dashboard.',
+            });
+          }
           break;
         }
         const plan = planByPriceId(priceId);
@@ -66,6 +87,17 @@ export async function POST(req: Request) {
           await db.rpc('grant_subscription_minutes', { p_user: userId, p_minutes: plan.minutes, p_ref: `inv_${inv.id}` });
         }
         await db.from('profiles').update({ plan: plan.key, sub_status: 'active', period_end: iso(line?.period?.end) }).eq('id', userId);
+        if (inv.billing_reason === 'subscription_create' || inv.billing_reason === 'subscription_cycle') {
+          const first = inv.billing_reason === 'subscription_create';
+          await sendPurchaseEmail({
+            ref: `inv_${inv.id}`, to: inv.customer_email, title: `${plan.name} plan`,
+            detail: first
+              ? `Welcome to the ${plan.name} plan! ${plan.minutes.toLocaleString()} minutes have been added to your account, and they refresh every month.`
+              : `Your ${plan.name} plan renewed and your ${plan.minutes.toLocaleString()} monthly minutes have been refreshed.`,
+            amountCents: inv.amount_paid, currency: inv.currency, receiptUrl: inv.hosted_invoice_url, balance: await balanceOf(userId),
+            footnote: 'Manage or cancel any time from Manage billing on your dashboard.',
+          });
+        }
         break;
       }
 
