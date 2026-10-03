@@ -5,11 +5,12 @@ import Icon from '@/components/Icons';
 import { ManageBillingButton } from '@/components/BuyButton';
 import { createClient } from '@/lib/supabase/server';
 import { PLANS } from '@/lib/plans';
+import CheckoutBanner from '@/components/CheckoutBanner';
 
 export const metadata = { title: 'Dashboard' };
 export const dynamic = 'force-dynamic';
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ checkout?: string; kind?: string }> }) {
   const sp = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -26,7 +27,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <div className="wrap" style={{ paddingTop: 30 }}>
-      {sp.checkout === 'success' && <div className="alert ok" style={{ marginBottom: 16 }}>Payment received. Your minutes will appear in a few seconds.</div>}
+      {sp.checkout === 'success' && <CheckoutBanner kind={sp.kind} />}
 
       <div className="card glow dash-hero">
         <div>

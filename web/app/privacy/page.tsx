@@ -6,7 +6,7 @@ export default function Privacy() {
     <div className="wrap narrow prose" style={{ paddingTop: 40 }}>
       <h1 style={{ fontSize: '2rem' }}>Privacy Policy</h1>
       <div className="alert" style={{ marginBottom: 20 }}><strong>Template — not legal advice.</strong> Have a qualified attorney review and adapt this before launch (GDPR/CCPA obligations depend on where your users are).</div>
-      <p className="muted">Last updated: [DATE]</p>
+      <p className="muted">Last updated: October 2, 2026</p>
       <h2>What we collect</h2>
       <ul>
         <li>Account data: your email address and authentication details.</li>
@@ -19,9 +19,9 @@ export default function Privacy() {
       <h2>Service providers</h2>
       <p>{name} uses Supabase (database, authentication), Cloudflare R2 or Supabase Storage (file storage), OpenAI (speech-to-text and translation processing), Stripe (payments), Vercel and Railway (hosting). Your audio and text are sent to these providers only as needed to perform the Service.</p>
       <h2>Retention and deletion</h2>
-      <p>Uploaded files are deleted after processing; downloaded media after 7 days. Transcripts stay until you delete the job. You can delete any job in the app, or email [SUPPORT EMAIL] to delete your account and data.</p>
+      <p>Uploaded files are deleted after processing; downloaded media after 7 days. Transcripts stay until you delete the job. You can delete any job in the app, or email support@theclipscribe.com to delete your account and data.</p>
       <h2>Your rights</h2>
-      <p>Depending on your location you may have rights to access, correct, export or delete your data. Contact [SUPPORT EMAIL].</p>
+      <p>Depending on your location you may have rights to access, correct, export or delete your data. Contact support@theclipscribe.com.</p>
     </div>
   );
 }

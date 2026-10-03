@@ -6,7 +6,7 @@ export default function Terms() {
     <div className="wrap narrow prose" style={{ paddingTop: 40 }}>
       <h1 style={{ fontSize: '2rem' }}>Terms of Service</h1>
       <div className="alert" style={{ marginBottom: 20 }}><strong>Template — not legal advice.</strong> Have a qualified attorney review and adapt this text (and register a DMCA agent) before launching commercially.</div>
-      <p className="muted">Last updated: [DATE]</p>
+      <p className="muted">Last updated: October 2, 2026</p>
 
       <h2>1. The service</h2>
       <p>{name} (&quot;we&quot;, &quot;the Service&quot;) lets you transcribe, translate and, where technically possible, download audio and video that you submit by link or upload.</p>
@@ -31,13 +31,13 @@ export default function Terms() {
       <p>Uploaded files are deleted after processing. Downloaded media is deleted after 7 days. Transcripts are kept until you delete the job or your account.</p>
 
       <h2>7. Copyright complaints (DMCA)</h2>
-      <p>If you believe content processed through the Service infringes your copyright, contact [DESIGNATED AGENT EMAIL] with the information required by 17 U.S.C. § 512(c)(3). We will respond as required by law and terminate repeat infringers.</p>
+      <p>If you believe content processed through the Service infringes your copyright, contact support@theclipscribe.com with the information required by 17 U.S.C. § 512(c)(3). We will respond as required by law and terminate repeat infringers.</p>
 
       <h2>8. Disclaimers and liability</h2>
       <p>The Service is provided &quot;as is&quot;, without warranties. To the maximum extent permitted by law, our total liability is limited to the amount you paid us in the 3 months before the claim. Third-party platforms may block or change access at any time, so link downloads cannot be guaranteed.</p>
 
       <h2>9. Governing law</h2>
-      <p>These terms are governed by the laws of [STATE/COUNTRY]. Contact: [SUPPORT EMAIL].</p>
+      <p>These terms are governed by the laws of the State of Texas, USA. Contact: support@theclipscribe.com.</p>
     </div>
   );
 }

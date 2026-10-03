@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     allow_promotion_codes: true,
     metadata: meta,
     ...(kind === 'plan' || kind === 'addon' ? { subscription_data: { metadata: meta } } : { payment_intent_data: { metadata: meta } }),
-    success_url: `${appUrl()}/dashboard?checkout=success`,
+    success_url: `${appUrl()}/dashboard?checkout=success&kind=${kind}`,
     cancel_url: `${appUrl()}/pricing?checkout=cancelled`,
   });
   return NextResponse.json({ url: session.url });

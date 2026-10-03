@@ -3,9 +3,11 @@ import { ADDON, PACKS, PLANS } from '@/lib/plans';
 
 export const metadata = { title: 'Pricing' };
 
-export default function Pricing() {
+export default async function Pricing({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
+  const sp = await searchParams;
   return (
     <div className="wrap" style={{ paddingTop: 40 }}>
+      {sp.checkout === 'cancelled' && <div className="alert" style={{ marginBottom: 16 }}>Checkout cancelled. You were not charged. Pick a plan whenever you are ready.</div>}
       <h1 style={{ fontSize: '2.4rem' }}>Pricing</h1>
       <p className="muted">Start free with 10 minutes. Subscriptions reset monthly; minute packs never expire.</p>
 
